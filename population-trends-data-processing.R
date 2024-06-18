@@ -3,8 +3,12 @@ library(openxlsx)
 library(psrcelmer)
 library(echarts4r)
 library(psrcplot)
+library(ggplot2)
+library(treemapify)
 
 source("functions.R")
+
+install_psrc_fonts()
 
 # Data Inputs -------------------------------------------------------------
 
@@ -13,7 +17,7 @@ ofm_2000 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2000
 ofm_2010 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2010_2020.xlsx"
 ofm_2020 <- "X:/DSA/population-trends/data/ofm_april1_draft.xlsx"
 
-base_year <- 2015
+base_year <- 2018
 pre_covid <- 2019
 
 # Jurisdictions -----------------------------------------------------------
@@ -24,7 +28,7 @@ jurisdictions <- jurisdictions |>
   mutate(juris_name = str_replace_all(juris_name, "Beau Arts Village", "Beaux Arts Village")) |>
   select(geography="juris_name", "regional_geography", "airport_affected") |>
   distinct() |>
-  mutate(regional_geography = str_replace_all(regional_geography, "HCT", "High Capacity Transit Community")) |>
+  mutate(regional_geography = str_replace_all(regional_geography, "HCT", "HCT Community")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "Metro", "Metropolitan Cities")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "Core", "Core Cities")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "CitiesTowns", "Cities & Towns")) |>
@@ -137,17 +141,33 @@ ofm_pop <- bind_rows(ofm_pop, annual) |> drop_na()
 
 rm(annual)
 
+t <- ofm_pop |> pivot_wider(names_from = metric, values_from = estimate)
+
 # Region Population Change ------------------------------------------------
 
 region_pop_change_chart <- create_bar_chart(df = ofm_pop |> 
                                               filter(metric == "Population Change" & geography  == "Region" & year >= base_year) |>
                                               mutate(year = as.character(year)),
-                                            x = "year", y = "estimate", fill = "metric", color = c("#91268F"))
+                                            x = "year", y = "estimate", fill = "metric", color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
 
-incorporated_pop_change_chart <- create_bar_chart(df = ofm_pop |> 
-                                                    filter(metric == "Population Change" & geography  %in% c("Incorporated Region", "Unincorporated Region") & year >= base_year) |>
-                                                    mutate(year = as.character(year)),
-                                                  x = "year", y = "estimate", fill = "regional_geography", color = c("#F05A28", "#8CC63E"))
+geography_pop_change_chart <- create_static_treemap_chart(t = ofm_pop |> 
+                                                            filter(metric == "Population Change" & filter %in% c(2,4) & year >= base_year) |>
+                                                            filter(!(str_detect(geography, "County"))) |>
+                                                            group_by(regional_geography) |>
+                                                            summarise(estimate = sum(estimate)) |>
+                                                            as_tibble(),
+                                                          area = "estimate", fill = "regional_geography",
+                                                          est = "number", dec = -2)
+
+county_pop_change_chart <- echart_pie_chart(t = ofm_pop |> 
+                                              filter(metric == "Population Change" & filter ==1 & geography !="Region" & year >= base_year) |>
+                                              group_by(geography) |>
+                                              summarise(estimate = sum(estimate)) |>
+                                              as_tibble(),
+                                            val = "estimate",
+                                            lab = "geography",
+                                            color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"),
+                                            legend=FALSE)
 
 city_change_since_covid_chart <- create_bar_chart(df = ofm_pop |> 
                                                     filter(metric == "Population Change" & filter == 4 & year >= pre_covid+1) |>

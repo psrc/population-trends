@@ -17,7 +17,7 @@ tooltip_js <- "
 
 format_opts <- function(e, esttype, dec, title) {
   if(esttype == "number") {
-    e <- e |> e_tooltip(trigger = "item")
+    e <- e |> e_tooltip(trigger = "item") 
     
   } else {
     
@@ -32,8 +32,9 @@ format_opts <- function(e, esttype, dec, title) {
                nameLocation = "middle", 
                nameGap = 50,
                nameTextStyle = list(fontSize=14),
-               axisLabel=list(margin=10),
+               axisLabel=list(margin=10, fontSize=16, fontWeight='bold'),
                formatter = e_axis_formatter(esttype, digits = dec)) |>
+      e_x_axis(axisLabel=list(fontSize=20)) |>
       e_tooltip(trigger = "item",
                 formatter =  e_tooltip_item_formatter(style = esttype, digits = 0, currency = curr)) |>
       e_tooltip(formatter =  htmlwidgets::JS(tooltip_js))
@@ -44,7 +45,10 @@ format_opts <- function(e, esttype, dec, title) {
 e_basics <- function(e, top_padding, bottom_padding, legend, left_align) {
   e <- e |>
     e_grid(left = left_align, top = top_padding, bottom = bottom_padding) |>
-    e_x_axis(axisTick=list(show = FALSE)) |>
+    e_x_axis(axisTick=list(show = FALSE),
+             axisLabel=list(fontSize=16, fontWeight = 'bold')) |>
+    e_y_axis(axisTick=list(show = FALSE),
+             axisLabel=list(fontSize=16, fontWeight = 'bold')) |>
     e_show_loading()
   
   e <- e |> e_legend(show = legend, bottom=0)
@@ -95,9 +99,9 @@ create_bar_chart <- function(df, x, y, fill, esttype="number", dec=0, color, bar
   
   # Create the most basic chart
   c <- chart_df |>
-    e_charts_(x, timeline = FALSE) |>
-    e_toolbox_feature("dataView") |>
-    e_toolbox_feature("saveAsImage")
+    e_charts_(x, timeline = FALSE) #|>
+    #e_toolbox_feature("dataView") |>
+    #e_toolbox_feature("saveAsImage")
   
   # Add a bar for each series
   for (fill_items in chart_fill) {
@@ -197,5 +201,93 @@ create_line_chart <- function(df, x, y, fill, esttype="number", dec=0, color, le
   c <- format_opts(c, esttype, dec, title)
   
   return(c)
+  
+}
+
+create_static_treemap_chart <- function(t, area, fill, title="", subtitle="", source="", alt="", est="percent", dec=0, color="psrc_light") {
+  
+  tot <- t |> select(all_of(area)) |> pull() |> sum()
+  t <- t |> mutate(total_share = .data[[area]]/tot)
+  
+  # Estimate type determines the labels
+  if (est=="percent") {
+    factor=100
+    p=""
+    s="%"
+    
+  } else if (est=="currency") {
+    factor=1
+    p="$"
+    s=""
+    
+  } else {
+    factor=1
+    p=""
+    s=""
+  }
+  
+  if (est=="percent") {
+    c <- ggplot(t,
+                aes(area = get(eval(area)),
+                    fill = get(eval(fill)), 
+                    label = paste(get(eval(fill)), 
+                                  paste0(p, prettyNum(round(get(eval(area))*factor,dec), big.mark = ","), s),
+                                  sep = "\n"))) +
+      geom_treemap(colour = "white", size = 3) +
+      geom_treemap_text(colour = "white",
+                        place = "centre",
+                        size = 16,
+                        grow = FALSE,
+                        fontface="bold") +
+      psrc_style() +
+      theme(legend.position = "none") +
+      scale_fill_discrete_psrc(color) +
+      labs(title=title, caption = source, alt = alt)
+    
+  } else {
+    
+    c <- ggplot(t,
+                aes(area = get(eval(area)),
+                    fill = get(eval(fill)), 
+                    label = paste(get(eval(fill)), 
+                                  paste0(p, prettyNum(round(get(eval(area))*factor,dec), big.mark = ","), s),
+                                  sep = "\n"))) +
+      geom_treemap(colour = "white", size = 3) +
+      geom_treemap_text(colour = "white",
+                        place = "centre",
+                        size = 16,
+                        grow = FALSE,
+                        fontface="bold") +
+      psrc_style() +
+      theme(legend.position = "none") +
+      scale_fill_discrete_psrc(color) +
+      labs(title=title, caption = source, alt = alt)
+    
+  }
+  
+  c <- c + theme(
+    
+    #Text format:
+    #This sets the font, size, type and color of text for the chart's title
+    plot.title = element_text(family="Poppins", size=14),
+
+    #This leaves the caption text element empty, because it is set elsewhere in the finalise plot function
+    plot.caption =  element_text(family="Poppins",
+                                 size=10,
+                                 face="italic",
+                                 color="#4C4C4C"))
+  return(c)
+}
+
+echart_pie_chart <- function(t, lab, val, color, legend=TRUE) {
+  
+  p <- t |>
+    e_charts_(lab) |>
+    e_pie_(val, radius = c("25%", "50%")) |> 
+    e_color(color) |>
+    e_tooltip() |>
+    e_legend(show = legend)
+  
+  return(p)
   
 }
