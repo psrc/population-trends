@@ -26,13 +26,12 @@ jurisdictions <- get_table(schema='Political', tbl_name='jurisdiction_dims')
 jurisdictions <- jurisdictions |>
   mutate(juris_name = str_replace_all(juris_name, "Seatac", "SeaTac")) |>
   mutate(juris_name = str_replace_all(juris_name, "Beau Arts Village", "Beaux Arts Village")) |>
-  select(geography="juris_name", "regional_geography", "airport_affected") |>
+  select(geography="juris_name", "regional_geography") |>
   distinct() |>
   mutate(regional_geography = str_replace_all(regional_geography, "HCT", "HCT Community")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "Metro", "Metropolitan Cities")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "Core", "Core Cities")) |>
   mutate(regional_geography = str_replace_all(regional_geography, "CitiesTowns", "Cities & Towns")) |>
-  select(-"airport_affected") |>
   mutate(geography = str_replace_all(geography, "Uninc. King", "King County")) |>
   mutate(geography = str_replace_all(geography, "Uninc. Kitsap", "Kitsap County")) |>
   mutate(geography = str_replace_all(geography, "Uninc. Pierce", "Pierce County")) |>
@@ -102,19 +101,17 @@ ofm_pop_20 <- as_tibble(read.xlsx(ofm_2020, detectDates = FALSE, skipEmptyRows =
   mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both")))
 
 ofm_pop <- bind_rows(list(ofm_pop_90, ofm_pop_00, ofm_pop_10, ofm_pop_20)) |>
-  select(-"County") |>
   group_by(Filter, Jurisdiction, Year) |>
   summarize(Estimate = sum(Estimate)) |>
   as_tibble() |>
-  select(filter = "Filter", year = "Year", geography = "Jurisdiction", estimate = "Estimate") |>
-  mutate(metric = "Total Population")
+  select(filter = "Filter", year = "Year", geography = "Jurisdiction", total_population = "Estimate")
 
 region_pop <- ofm_pop |>
   filter(filter <= 3) |>
-  select("filter", "year", "estimate") |>
+  select("filter", "year", "total_population") |>
   group_by(filter, year) |>
   summarize_all(sum) |>
-  mutate(geography = "Region", metric = "Total Population") |>
+  mutate(geography = "Region") |>
   mutate(geography = ifelse(filter == 2, "Unincorporated Region", geography)) |>
   mutate(geography = ifelse(filter == 3, "Incorporated Region", geography))
 
@@ -130,52 +127,48 @@ ofm_pop <- left_join(ofm_pop, jurisdictions, by=c("geography")) |>
 rm(ofm_pop_90, ofm_pop_00, ofm_pop_10, ofm_pop_20, region_pop, jurisdictions)
 
 # Annual Change -----------------------------------------------------------
-annual <- ofm_pop |>
+ofm_pop <- ofm_pop |>
   group_by(geography) |>
-  mutate(delta = (estimate - lag(estimate))) |>
-  mutate(metric = "Population Change") |>
-  select(-"estimate") |>
-  rename(estimate = "delta")
+  mutate(previous = (lag(total_population))) |>
+  drop_na() |>
+  mutate(total_change = total_population - previous) |>
+  mutate(percent_change = total_change / previous) |>
+  select("filter", "year", "geography", "regional_geography", "total_population", "total_change", "percent_change") |>
+  as_tibble()
 
-ofm_pop <- bind_rows(ofm_pop, annual) |> drop_na()
+# Share Calculations ------------------------------------------------------
+region <- ofm_pop |> filter(geography == "Region") |> select(year, region_population = "total_population", region_change = "total_change")
 
-rm(annual)
+ofm_pop <- left_join(ofm_pop, region, by=c("year")) |>
+  mutate(share_region_total = total_population / region_population) |>
+  mutate(share_region_change = total_change / region_change) |>
+  select(-"region_population", -"region_change")
 
-t <- ofm_pop |> pivot_wider(names_from = metric, values_from = estimate)
+rm(region)
 
-# Region Population Change ------------------------------------------------
+# Charts ------------------------------------------------
 
 region_pop_change_chart <- create_bar_chart(df = ofm_pop |> 
-                                              filter(metric == "Population Change" & geography  == "Region" & year >= base_year) |>
-                                              mutate(year = as.character(year)),
-                                            x = "year", y = "estimate", fill = "metric", color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
+                                              filter(geography  == "Region" & year >= base_year) |>
+                                              mutate(year = as.character(year), metric = "Annual Population Change"),
+                                            x = "year", y = "total_change", fill = "metric", color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
 
 geography_pop_change_chart <- create_static_treemap_chart(t = ofm_pop |> 
-                                                            filter(metric == "Population Change" & filter %in% c(2,4) & year >= base_year) |>
+                                                            filter(filter %in% c(2,4) & year >= base_year) |>
                                                             filter(!(str_detect(geography, "County"))) |>
                                                             group_by(regional_geography) |>
-                                                            summarise(estimate = sum(estimate)) |>
+                                                            summarise(estimate = sum(total_change)) |>
                                                             as_tibble(),
                                                           area = "estimate", fill = "regional_geography",
                                                           est = "number", dec = -2)
 
 county_pop_change_chart <- echart_pie_chart(t = ofm_pop |> 
-                                              filter(metric == "Population Change" & filter ==1 & geography !="Region" & year >= base_year) |>
+                                              filter(filter ==1 & geography !="Region" & year >= base_year) |>
                                               group_by(geography) |>
-                                              summarise(estimate = sum(estimate)) |>
+                                              summarise(estimate = sum(total_change)) |>
                                               as_tibble(),
                                             val = "estimate",
                                             lab = "geography",
                                             color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"),
                                             legend=FALSE)
 
-city_change_since_covid_chart <- create_bar_chart(df = ofm_pop |> 
-                                                    filter(metric == "Population Change" & filter == 4 & year >= pre_covid+1) |>
-                                                    mutate(year = as.character(year)) |>
-                                                    group_by(geography) |>
-                                                    summarise(estimate = sum(estimate)) |>
-                                                    as_tibble() |>
-                                                    arrange(estimate) |>
-                                                    mutate(metric = paste0("Population Growth since ", pre_covid)) |>
-                                                    filter(estimate > 0),
-                                                  x = "geography", y = "estimate", fill = "metric", color = c("#00A7A0"), bar_column="bar")
