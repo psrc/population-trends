@@ -270,7 +270,7 @@ county_pop_share_chart <- create_bar_chart(df = ofm_pop |>
                                                       filter(regional_geography == "County" & year >= base_year) |>
                                                       filter(geography != "Region") |>
                                              mutate(year = as.character(year), metric = "County Share of Regional Total Since 2018"),
-                                                    x = "year", y = "share_region_total", fill = "geography", dec = 1,
+                                                    x = "year", y = "share_region_total", fill = "geography", dec = 1, stacked = TRUE,
                                                     esttype = "percent", color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"), left_align='10%', bottom_padding=75)
 
 # share of the regional change by county since 2018

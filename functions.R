@@ -82,7 +82,7 @@ timeline_opts <- function(e, right_toggle, left_toggle) {
   
 }
 
-create_bar_chart <- function(df, x, y, fill, esttype="number", dec=0, color, bar_column="column", legend=TRUE, left_align='20%', top_padding=25, bottom_padding=75, title=NULL) {
+create_bar_chart <- function(df, x, y, fill, esttype="number", dec=0, color, bar_column="column", stacked=FALSE, legend=TRUE, left_align='20%', top_padding=25, bottom_padding=75, title=NULL) {
   
   # Determine the number of Series to Plot
   chart_fill <- df |> select(all_of(fill)) |> distinct() |> pull() |> unique() |> as.character()
@@ -105,7 +105,12 @@ create_bar_chart <- function(df, x, y, fill, esttype="number", dec=0, color, bar
   
   # Add a bar for each series
   for (fill_items in chart_fill) {
-    c <- c |> e_bar_(fill_items, name = fill_items)
+    
+    if (stacked == TRUE) {
+      c <- c |> e_bar_(fill_items, name = fill_items, stack = "grp")
+    } else {
+      c <- c |> e_bar_(fill_items, name = fill_items)
+    }
   }
   
   # Set series colors and set the basics for padding and leged
