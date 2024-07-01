@@ -149,15 +149,83 @@ ofm_pop <- left_join(ofm_pop, region, by=c("year")) |>
 
 rm(region)
 
-# Charts ------------------------------------------------
+# Charts for first trend ------------------------------------------------
+
+# total population from 2010 to 2024
+reg_total <- ofm_pop |> 
+  filter(geography  == "Region" & year >= 2010) |>
+  mutate(year = as.character(year), 
+         metric = "Regional Population",
+         total_population = round(total_population,-3)) |>
+  select("year", "geography", "total_population", "metric")
+
+region_pop_total_chart <- create_line_chart(df = reg_total,
+                                            x = "year", y = "total_population", fill = "metric", min_y = 2000000, max_y = 5000000,
+                                            color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50, top_padding=50)
 
 # annual region pop nominal change by year - 2018 to 2024
-reg <- ofm_pop |> 
-  filter(geography  == "Region" & year >= base_year) 
+reg_change <- ofm_pop |> 
+  filter(geography  == "Region" & year >= base_year) |>
+  mutate(year = as.character(year), metric = "Annual Population Change") |>
+  select("year", "geography", "total_change", "metric")
 
-region_pop_change_chart <- create_bar_chart(df = reg |>
-                                              mutate(year = as.character(year), metric = "Annual Population Change"),
-                                            x = "year", y = "total_change", fill = "metric", color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
+region_pop_change_chart <- create_bar_chart(df = reg_change,
+                                            x = "year", y = "total_change", fill = "metric", 
+                                            color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50, top_padding=50)
+
+# County Change
+county_change <- ofm_pop |> 
+  filter(regional_geography == "County" & year >= "2021") |>
+  filter(geography != "Region") |>
+  select(Year = "year", County = "geography", Change = "total_change", Share = "share_region_change") |>
+  pivot_wider(names_from = c("Year"), values_from = c("Change", "Share")) |>
+  select("County", contains("2021"), contains("2022"), contains("2023"), contains("2024"))
+
+total_share <- ofm_pop |> 
+  filter(regional_geography == "County" & year == "2024") |>
+  filter(geography != "Region") |>
+  select(County = "geography", Share = "share_region_total")
+
+county_change <- left_join(county_change, total_share, by=c("County"))
+rm(total_share)
+
+# City Change
+allcities <- ofm_pop |>
+  filter(filter == "4" & year == 2024) |>
+  as_tibble()
+
+# top 15 by percent for 2024
+top15percent <- top_n(allcities, 15, percent_change) |>
+  select("year", "geography", "regional_geography", "percent_change") |>
+  arrange(percent_change) |>
+  mutate(metric = "All Cities & Towns % of Pop Growth for 2024")
+
+# top 15 by percent for all cities and towns for 2024
+pop_change_per_2024_chart_bar <- create_bar_chart(df = top15percent,
+                                                  x = "geography", y = "percent_change", fill = "metric", 
+                                                  bar_column = "bar", dec = 1, esttype="percent",
+                                                  color = c("#91268F"), legend = FALSE, left_align='20%', bottom_padding=50)
+
+
+# top 15 by pop for nominal growth for 2024
+top15nominal <- top_n(allcities, 15, total_change) |>
+  select("year", "geography", "regional_geography", "total_change") |>
+  arrange(total_change) |>
+  mutate(metric = "All Cities & Towns Pop Growth for 2024")
+
+# top 15 by percent for all cities and towns
+pop_change_2024_chart_bar <- create_bar_chart(df = top15nominal,
+                                              x = "geography", y = "total_change", fill = "metric", 
+                                              bar_column = "bar", dec = 0, esttype="number",
+                                              color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
+
+# Create Excel File
+list_of_datasets <-
+  list("region_total" = reg_total, "region_change" = reg_change, "county" = county_change, "top15percent" = top15percent, "top15nominal" = top15nominal)
+
+write.xlsx(list_of_datasets, "data/population_trend_data.xlsx")
+
+# Charts for further exploration ------------------------------------------
 
 # nominal pop change since 2018 by regional geography
 geography_pop_change_chart <- create_static_treemap_chart(t = ofm_pop |> 
@@ -289,34 +357,6 @@ pop_change_per_chart_bar <- create_bar_chart(df = top25per |>
                                                esttype = "percent", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
 
 
-# filtering for all cities and towns for 2024
-allcities <- ofm_pop |>
-  filter(filter == "4" & year == 2024) |>
-  as_tibble()
-
-# top 15 by percent for 2024
-top15percent <- top_n(allcities, 15, percent_change)
-
-# top 15 by percent for all cities and towns for 2024
-pop_change_per_2024_chart_bar <- create_bar_chart(df = top15percent |> 
-                                           arrange(percent_change) |>
-                                           mutate(metric = "All Cities & Towns % of Pop Growth for 2024"),
-                                         x = "geography", y = "percent_change", fill = "metric", 
-                                         bar_column = "bar", dec = 3,
-                                         color = c("#91268F"), legend = FALSE, left_align='20%', bottom_padding=50)
-
-
-# top 15 by pop for nominal growth for 2024
-top15nominal <- top_n(allcities, 15, total_change)
-
-# top 15 by percent for all cities and towns
-pop_change_2024_chart_bar <- create_bar_chart(df = top15nominal |> 
-                                           arrange(total_change) |>
-                                           mutate(metric = "All Cities & Towns Pop Growth for 2024"),
-                                         x = "geography", y = "total_change", fill = "metric", 
-                                         bar_column = "bar", dec = 1,
-                                        color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50)
-
 
 
 # for 2024 the share of the regional total by county
@@ -377,7 +417,4 @@ county_pop_change_chart <- create_bar_chart(df = county18,
 
 # create excel file ----------------------
 
-list_of_datasets <-
-  list("reg" = reg, "top15percent" = top15percent, "top15nominal" = top15nominal)
 
-write.xlsx(list_of_datasets, "poptrend.xlsx")

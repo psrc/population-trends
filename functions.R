@@ -173,7 +173,7 @@ create_bar_chart_toggle <- function(df, x, y, fill, toggle, esttype="number", de
   
 }
 
-create_line_chart <- function(df, x, y, fill, esttype="number", dec=0, color, legend=TRUE, left_align='20%', top_padding=100, bottom_padding=75, title=NULL) {
+create_line_chart <- function(df, x, y, fill, esttype="number", dec=0, color, legend=TRUE, left_align='20%', top_padding=100, bottom_padding=75, title=NULL, min_y = 0, max_y) {
   
   # Determine the number of Series to Plot
   chart_fill <- df |> select(all_of(fill)) |> distinct() |> pull() |> unique() |> as.character()
@@ -189,21 +189,27 @@ create_line_chart <- function(df, x, y, fill, esttype="number", dec=0, color, le
     pivot_wider(names_from = all_of(fill), values_from = all_of(y))
   
   # Create the most basic chart
-  c <- chart_df |>
-    e_charts_(x, timeline = FALSE) |>
-    e_toolbox_feature("dataView") |>
-    e_toolbox_feature("saveAsImage")
+  c <- chart_df |> e_charts_(x, timeline = FALSE) 
   
   # Add a bar for each series
   for (fill_items in chart_fill) {
-    c <- c |> e_line_(fill_items, smooth = FALSE)
+    c <- c |> e_line_(fill_items, 
+                      smooth = FALSE, 
+                      lineStyle = list(width = 4),
+                      symbolSize = 8,
+                      label = list(show = FALSE,
+                                   position = 'top',
+                                   textStyle = list(fontSize = 14)),
+                      endLabel = list(show = FALSE,
+                                      distance = 0,
+                                      offset = c(-25, 40)))
   }
   
   # Set series colors and set the basics for padding and leged
   c <- c |> e_color(color) |> e_basics(top_padding, bottom_padding, legend = legend, left_align = left_align)
   
   # Format the Axis and Hover Text
-  c <- format_opts(c, esttype, dec, title)
+  c <- format_opts(c, esttype, dec, title) |> e_y_axis(min = min_y, max = max_y)
   
   return(c)
   
