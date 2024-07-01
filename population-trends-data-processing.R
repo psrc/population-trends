@@ -15,7 +15,7 @@ install_psrc_fonts()
 ofm_1990 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_1990-2000.xlsx"
 ofm_2000 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2000-2010.xlsx"
 ofm_2010 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2010_2020.xlsx"
-ofm_2020 <- "X:/DSA/population-trends/data/ofm_april1_draft.xlsx"
+ofm_2020 <- "X:/DSA/population-trends/data/ofm_april1_population_final.xlsx"
 
 base_year <- 2018
 pre_covid <- 2019
@@ -87,12 +87,15 @@ ofm_pop_10 <- as_tibble(read.xlsx(ofm_2010, detectDates = FALSE, skipEmptyRows =
     Filter == 4 ~ Jurisdiction)) |>
   mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both")))
 
-ofm_pop_20 <- as_tibble(read.xlsx(ofm_2020, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "ofm_april1_draft")) |>
-  filter(County.Name %in% c("King","Kitsap","Pierce","Snohomish")) |>
+ofm_pop_20 <- as_tibble(read.xlsx(ofm_2020, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 5, colNames = TRUE, sheet = "Population")) |>
+  filter(County %in% c("King","Kitsap","Pierce","Snohomish")) |>
+  select(-"Line") |>
   pivot_longer(cols=contains("Population"), names_to="Year", values_to="Estimate") |>
-  mutate(Year = str_replace(Year, "Population.", ""), City.Name = str_replace(City.Name, " \\(part\\)", "")) |>
+  mutate(Year = str_replace(Year, ".Population.Census", ""), 
+         Year = str_replace(Year, ".Population.Estimate¹", ""),
+         Year = str_replace(Year, ".Population.Estimate", ""), 
+         Jurisdiction = str_replace(Jurisdiction, " \\(part\\)", "")) |>
   mutate(across(c('Filter','Year','Estimate'), as.numeric)) |>
-  rename(County="County.Name", Jurisdiction="City.Name") |>
   mutate(Jurisdiction = case_when(
     Filter == 1 ~ Jurisdiction,
     Filter == 2 ~ paste0(Jurisdiction," ", County, " County"),
