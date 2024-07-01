@@ -225,17 +225,143 @@ list_of_datasets <-
 
 write.xlsx(list_of_datasets, "data/population_trend_data.xlsx")
 
-# Charts for further exploration ------------------------------------------
+# Charts for RSC ----------------------------------------------------------
 
-# nominal pop change since 2018 by regional geography
-geography_pop_change_chart <- create_static_treemap_chart(t = ofm_pop |> 
-                                                            filter(filter %in% c(2,4) & year >= base_year) |>
-                                                            filter(!(str_detect(geography, "County"))) |>
-                                                            group_by(regional_geography) |>
-                                                            summarise(estimate = sum(total_change)) |>
-                                                            as_tibble(),
-                                                          area = "estimate", fill = "regional_geography",
-                                                          est = "number", dec = -2)
+# Total Population Chart
+rsc_reg_total <- ofm_pop |> 
+  filter(geography  == "Region" & year >= 2010) |>
+  mutate(year = as.character(year), 
+         metric = "Regional Population",
+         total_population = round(total_population,-3)) |>
+  select("year", "geography", "total_population", "metric")
+
+rsc_region_pop_total_chart <- create_line_chart(df = rsc_reg_total,
+                                                x = "year", y = "total_population", fill = "metric", min_y = 2000000, max_y = 5000000,
+                                                color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50, top_padding=50)
+
+# Region Change Chart
+rsc_reg_change <- ofm_pop |> 
+  filter(geography  == "Region" & year >= base_year) |>
+  mutate(year = as.character(year), metric = "Annual Population Change") |>
+  select("year", "geography", "total_change", "metric")
+
+rsc_region_pop_change_chart <- create_bar_chart(df = rsc_reg_change,
+                                                x = "year", y = "total_change", fill = "metric", 
+                                                color = c("#91268F"), legend = FALSE, left_align='15%', bottom_padding=50, top_padding=50)
+
+
+
+# Change by county since 2018
+rsc_county_change <- ofm_pop |> 
+  filter(filter ==1 & geography !="Region" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble()|>
+  mutate(estimate = round(estimate, -2)) |>
+  mutate(chart_label = paste0(geography, ": ", format(estimate, big.mark = ","))) |>
+  mutate(metric = "County Pop Growth since 2018")
+
+rsc_county_pop_change_chart <- echart_pie_chart(t = rsc_county_change,
+                                                val = "estimate",
+                                                lab = "chart_label",
+                                                color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"),
+                                                legend=FALSE)
+
+# Change since 2018 by regional geography
+rsc_regional_geography_change <- ofm_pop |> 
+  filter(filter %in% c(2,4) & year >= base_year) |>
+  filter(!(str_detect(geography, "County"))) |>
+  group_by(regional_geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |>
+  mutate(estimate = round(estimate, -2)) |>
+  mutate(metric = "Regioanl Geography Pop Growth since 2018")
+
+rsc_regional_geography_pop_change_chart <- create_static_treemap_chart(t = rsc_regional_geography_change,
+                                                                       area = "estimate", fill = "regional_geography",
+                                                                       est = "number", dec = -2)
+
+# metro cities pop increase since 2018
+rsc_metro_population_growth <- ofm_pop |> 
+  filter(regional_geography == "Metropolitan Cities" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |> 
+  arrange(estimate) |>
+  mutate(metric = "Metro Cities Pop Growth since 2018")
+
+rsc_metro_pop_change_chart <- create_bar_chart(df = rsc_metro_population_growth,
+                                               x = "geography", y = "estimate", fill = "metric", 
+                                               bar_column = "bar", dec = 1,
+                                               esttype = "number", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
+
+# core cities pop increase since 2018
+rsc_core_population_growth <- ofm_pop |> 
+  filter(regional_geography == "Core Cities" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |> 
+  arrange(estimate) |>
+  mutate(metric = "Core Cities Pop Growth since 2018")
+
+rsc_core_pop_change_chart <- create_bar_chart(df = rsc_core_population_growth,
+                                              x = "geography", y = "estimate", fill = "metric", 
+                                              bar_column = "bar", dec = 1,
+                                              esttype = "number", color = c("#00A7A0"), legend = FALSE, left_align='25%', bottom_padding=50)
+
+# hct pop increase since 2018
+rsc_hct_population_growth <- ofm_pop |> 
+  filter(regional_geography == "HCT Community" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |> 
+  arrange(estimate) |>
+  mutate(metric = "HCT Pop Growth since 2018")
+
+rsc_hct_pop_change_chart <- create_bar_chart(df = rsc_hct_population_growth,
+                                             x = "geography", y = "estimate", fill = "metric", 
+                                             bar_column = "bar", dec = 1,
+                                             esttype = "number", color = c("#F05A28"), legend = FALSE, left_align='25%', bottom_padding=50)
+
+
+# cities and towns increase since 2018
+rsc_candt_population_growth_over_1000 <- ofm_pop |> 
+  filter(regional_geography == "Cities & Towns" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |> 
+  filter(estimate >= 1000) |>
+  arrange(estimate) |>
+  mutate(metric = "Cities & Towns Pop Growth since 2018")
+
+rsc_candt_over_1000_pop_change_chart <- create_bar_chart(df = rsc_candt_population_growth_over_1000,
+                                                         x = "geography", y = "estimate", fill = "metric", 
+                                                         bar_column = "bar", dec = 1,
+                                                         esttype = "number", color = c("#8CC63E"), legend = FALSE, left_align='25%', bottom_padding=50)
+
+rsc_candt_population_growth_under_1000 <- ofm_pop |> 
+  filter(regional_geography == "Cities & Towns" & year >= base_year) |>
+  group_by(geography) |>
+  summarise(estimate = sum(total_change)) |>
+  as_tibble() |> 
+  filter(estimate < 1000) |>
+  arrange(estimate) |>
+  mutate(metric = "Cities & Towns Pop Growth since 2018")
+
+rsc_candt_under_1000_pop_change_chart <- create_bar_chart(df = rsc_candt_population_growth_under_1000,
+                                                          x = "geography", y = "estimate", fill = "metric", 
+                                                          bar_column = "bar", dec = 1,
+                                                          esttype = "number", color = c("#8CC63E"), legend = FALSE, left_align='25%', bottom_padding=50)
+
+# Create Excel File
+list_of_datasets <-
+  list("region_total" = rsc_reg_total, "region_change" = rsc_reg_change, "county" = rsc_county_change, "rgeo" = rsc_regional_geography_change,
+       "metro" = rsc_metro_population_growth, "core" = rsc_core_population_growth, "hct" = rsc_hct_population_growth, 
+       "cities_towns" = bind_rows(rsc_candt_population_growth_over_1000, rsc_candt_population_growth_under_1000))
+
+write.xlsx(list_of_datasets, "data/rsc_population_trend_data.xlsx")
+
+# Charts for further exploration ------------------------------------------
 
 # percent pop change since 2018 by regional geography
 geo <- ofm_pop |>
@@ -260,19 +386,6 @@ geography_pop_per_change_chart <- create_static_treemap_chart(t = per_change_201
                                                             area = "estimate", fill = "regional_geography",
                                                           est = "percent", title = "Increase in Pop Since 2018 By Geography", dec = 0)
 
-
-# pop change by county since 2018
-county_pop_change_pie_chart <- echart_pie_chart(t = ofm_pop |> 
-                                              filter(filter ==1 & geography !="Region" & year >= base_year) |>
-                                              group_by(geography) |>
-                                              summarise(estimate = sum(total_change)) |>
-                                              as_tibble(),
-                                            val = "estimate",
-                                            lab = "geography",
-                                            color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"),
-                                            legend=FALSE)
-
-
 # pie chart for 2024 county population shares
 
 region_pop <- ofm_pop |>
@@ -286,54 +399,6 @@ county_pop_2024_pie_chart <- echart_pie_chart(t = region_pop,
                                                 color = c("#91268F", "#F05A28", "#8CC63E", "#00A7A0"),
                                                 legend=FALSE)
 
-# hct pop increase since 2018
-hct_pop_increase_chart_bar <- create_bar_chart(df = ofm_pop |> 
-                                               filter(regional_geography == "HCT Community Pop Growth" & year >= base_year) |>
-                                               group_by(geography) |>
-                                               summarise(estimate = sum(total_change)/sum(total_population)) |>
-                                               as_tibble() |> 
-                                               arrange(estimate) |>
-                                               mutate(metric = "HCT Pop Growth"),
-                                            x = "geography", y = "estimate", fill = "metric", 
-                                            bar_column = "bar", dec = 1,
-                                            esttype = "percent", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
-
-# core cities pop increase since 2018
-core_pop_increase_chart_bar <- create_bar_chart(df = ofm_pop |> 
-                                               filter(regional_geography == "Core Cities" & year >= base_year) |>
-                                               group_by(geography) |>
-                                               summarise(estimate = sum(total_change)/sum(total_population)) |>
-                                               as_tibble() |> 
-                                               arrange(estimate) |>
-                                               mutate(metric = "Core Cities Pop Growth"),
-                                             x = "geography", y = "estimate", fill = "metric", 
-                                             bar_column = "bar", dec = 1,
-                                             esttype = "percent", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
-
-# metro cities pop increase since 2018
-metro_pop_change_chart_bar <- create_bar_chart(df = ofm_pop |> 
-                                                filter(regional_geography == "Metropolitan Cities" & year >= base_year) |>
-                                                group_by(geography) |>
-                                                summarise(estimate = sum(total_change)/sum(total_population)) |>
-                                                as_tibble() |> 
-                                                arrange(estimate) |>
-                                                mutate(metric = "Metro Cities Pop Growth"),
-                                              x = "geography", y = "estimate", fill = "metric", 
-                                              bar_column = "bar", dec = 1,
-                                              esttype = "percent", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
-
-
-# cities and towns increase since 2018
-candt_pop_increase_chart_bar <- create_bar_chart(df = ofm_pop |> 
-                                                filter(regional_geography == "Cities & Towns" & year >= base_year) |>
-                                                group_by(geography) |>
-                                                summarise(estimate = sum(total_change)/sum(total_population)) |>
-                                                as_tibble() |> 
-                                                arrange(estimate) |>
-                                                mutate(metric = "Cities & Towns Pop Growth"),
-                                              x = "geography", y = "estimate", fill = "metric", 
-                                              bar_column = "bar", dec = 1,
-                                              esttype = "percent", color = c("#91268F"), legend = FALSE, left_align='25%', bottom_padding=50)
 
 # filtering for all cities and towns and calculating percent increase since 2018
 allcitiesper <- ofm_pop |>
