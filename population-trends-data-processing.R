@@ -12,10 +12,12 @@ install_psrc_fonts()
 
 # Data Inputs -------------------------------------------------------------
 
-ofm_1990 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_1990-2000.xlsx"
-ofm_2000 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2000-2010.xlsx"
-ofm_2010 <- "X:/DSA/population-trends/data/ofm_april1_intercensal_estimates_2010_2020.xlsx"
-ofm_2020 <- "X:/DSA/population-trends/data/ofm_april1_population_final.xlsx"
+ofm_pop_1990 <- "X:/DSA/population-trends/data/population/ofm_april1_intercensal_estimates_1990-2000.xlsx"
+ofm_pop_2000 <- "X:/DSA/population-trends/data/population/ofm_april1_intercensal_estimates_2000-2010.xlsx"
+ofm_pop_2010 <- "X:/DSA/population-trends/data/population/ofm_april1_intercensal_estimates_2010_2020.xlsx"
+ofm_pop_2020 <- "X:/DSA/population-trends/data/population/ofm_april1_population_final.xlsx"
+
+ofm_hu_by_type <- "x:/DSA/population-trends/data/housing/ofm_april1_postcensal_estimates_housing_1980_1990-present.xlsx"
 
 base_year <- 2018
 pre_covid <- 2019
@@ -38,7 +40,7 @@ jurisdictions <- jurisdictions |>
   mutate(geography = str_replace_all(geography, "Uninc. Snohomish", "Snohomish County"))
 
 # Process Population Data ----------------------------------------------
-ofm_pop_90 <- as_tibble(read.xlsx(ofm_1990, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population ")) |>
+ofm_pop_90 <- as_tibble(read.xlsx(ofm_pop_1990, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population ")) |>
   filter(County.Name %in% c("King","Kitsap","Pierce","Snohomish")) |>
   pivot_longer(cols=contains("Population"), names_to="Year", values_to="Estimate") |>
   select(-(contains("Place.Code")), -"Jurisdiction") |>
@@ -55,7 +57,7 @@ ofm_pop_90 <- as_tibble(read.xlsx(ofm_1990, detectDates = FALSE, skipEmptyRows =
   mutate(Jurisdiction = str_replace(Jurisdiction, "Du Pont", "DuPont")) |>
   mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both")))
 
-ofm_pop_00 <- as_tibble(read.xlsx(ofm_2000, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population")) |>
+ofm_pop_00 <- as_tibble(read.xlsx(ofm_pop_2000, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population")) |>
   filter(County.Name %in% c("King","Kitsap","Pierce","Snohomish")) |>
   pivot_longer(cols=contains("Population"), names_to="Year", values_to="Estimate") |>
   select(-(contains("Place.Code")), -"Jurisdiction") |>
@@ -71,7 +73,7 @@ ofm_pop_00 <- as_tibble(read.xlsx(ofm_2000, detectDates = FALSE, skipEmptyRows =
     Filter == 4 ~ Jurisdiction)) |>
   mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both")))
 
-ofm_pop_10 <- as_tibble(read.xlsx(ofm_2010, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population")) |>
+ofm_pop_10 <- as_tibble(read.xlsx(ofm_pop_2010, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 1, colNames = TRUE, sheet = "Total Population")) |>
   filter(County.Name %in% c("King","Kitsap","Pierce","Snohomish")) |>
   pivot_longer(cols=contains("Population"), names_to="Year", values_to="Estimate") |>
   select(-(contains("FIPS.Code")), -"Jurisdiction") |>
@@ -87,7 +89,7 @@ ofm_pop_10 <- as_tibble(read.xlsx(ofm_2010, detectDates = FALSE, skipEmptyRows =
     Filter == 4 ~ Jurisdiction)) |>
   mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both")))
 
-ofm_pop_20 <- as_tibble(read.xlsx(ofm_2020, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 5, colNames = TRUE, sheet = "Population")) |>
+ofm_pop_20 <- as_tibble(read.xlsx(ofm_pop_2020, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 5, colNames = TRUE, sheet = "Population")) |>
   filter(County %in% c("King","Kitsap","Pierce","Snohomish")) |>
   select(-"Line") |>
   pivot_longer(cols=contains("Population"), names_to="Year", values_to="Estimate") |>
@@ -127,9 +129,8 @@ ofm_pop <- left_join(ofm_pop, jurisdictions, by=c("geography")) |>
     filter==3 ~ "Incorporated",
     filter==4 ~ regional_geography))
 
-rm(ofm_pop_90, ofm_pop_00, ofm_pop_10, ofm_pop_20, region_pop, jurisdictions)
+rm(ofm_pop_90, ofm_pop_00, ofm_pop_10, ofm_pop_20, region_pop)
 
-# Annual Change -----------------------------------------------------------
 ofm_pop <- ofm_pop |>
   group_by(geography) |>
   mutate(previous = (lag(total_population))) |>
@@ -139,7 +140,6 @@ ofm_pop <- ofm_pop |>
   select("filter", "year", "geography", "regional_geography", "total_population", "total_change", "percent_change") |>
   as_tibble()
 
-# Share Calculations ------------------------------------------------------
 region <- ofm_pop |> filter(geography == "Region") |> select(year, region_population = "total_population", region_change = "total_change")
 
 ofm_pop <- left_join(ofm_pop, region, by=c("year")) |>
@@ -148,6 +148,67 @@ ofm_pop <- left_join(ofm_pop, region, by=c("year")) |>
   select(-"region_population", -"region_change")
 
 rm(region)
+
+# Process Housing Unit Data -------------------------------------------------------
+ofm_hu <- as_tibble(read.xlsx(ofm_hu_by_type, detectDates = FALSE, skipEmptyRows = TRUE, startRow = 4, colNames = TRUE, sheet = "Housing Units")) |>
+  filter(County %in% c("King","Kitsap","Pierce","Snohomish")) |>
+  pivot_longer(cols=contains("Housing"), names_to="temp", values_to="estimate") |>
+  select(-"Line") |>
+  separate(col = temp, sep = 4, into = c("year", "variable"), remove = TRUE) |>
+  mutate(variable = str_remove_all(variable, ".Census.Count.of.")) |>
+  mutate(variable = str_remove_all(variable, ".Postcensal.Estimate.of.")) |>
+  mutate(variable = str_remove_all(variable, ".Census-Based.Estimate.of.")) |>
+  mutate(variable = str_remove_all(variable, "¹")) |>
+  mutate(variable = str_replace_all(variable, "\\.", " ")) |>
+  mutate(estimate = str_replace_all(estimate, "\\.", " ")) |>
+  mutate(year = as.numeric(year), estimate = as.numeric(estimate), Filter = as.numeric(Filter)) |>
+  mutate(estimate = replace_na(estimate, 0)) |>
+  mutate(Jurisdiction = str_replace(Jurisdiction, " \\(part\\)", "")) |>
+  mutate(Jurisdiction = case_when(
+    Filter == 1 ~ paste0(County," County"),
+    Filter == 2 ~ paste0(Jurisdiction," ", County, " County"),
+    Filter == 3 ~ paste0(Jurisdiction," ", County," County"),
+    Filter == 4 ~ Jurisdiction)) |>
+  mutate(Jurisdiction = str_replace(Jurisdiction, "Beaux Arts", "Beaux Arts Village")) |>
+  mutate(Jurisdiction = str_replace(Jurisdiction, "Du Pont", "DuPont")) |>
+  mutate(Jurisdiction = str_trim(Jurisdiction, side = c("both"))) |>
+  select(filter = "Filter", "year", geography = "Jurisdiction", "variable", "estimate") |>
+  group_by(filter, year, geography, variable) |>
+  summarise(estimate = sum(estimate)) |>
+  as_tibble() |>
+  mutate(variable = str_replace_all(variable, "One Unit Housing Units", "Single-Family")) |>
+  mutate(variable = str_replace_all(variable, "Two or More Housing Units", "Multi-Family")) |>
+  mutate(variable = str_replace_all(variable, "Mobile Home and Special Housing Units", "Mobile Home")) |>
+  mutate(variable = str_replace_all(variable, "Total Housing Units", "Total"))
+
+region_hu <- ofm_hu |>
+  filter(filter <= 3) |>
+  select("filter", "year", "variable","estimate") |>
+  group_by(filter, year, variable) |>
+  summarize(estimate = sum(estimate)) |>
+  as_tibble() |>
+  mutate(geography = "Region") |>
+  mutate(geography = ifelse(filter == 2, "Unincorporated Region", geography)) |>
+  mutate(geography = ifelse(filter == 3, "Incorporated Region", geography))
+
+ofm_hu <- bind_rows(ofm_hu, region_hu)
+
+ofm_hu <- left_join(ofm_hu, jurisdictions, by=c("geography")) |>
+  mutate(regional_geography = case_when(
+    filter==1 ~ "County",
+    filter==2 ~ "Unincorporated",
+    filter==3 ~ "Incorporated",
+    filter==4 ~ regional_geography))
+
+ofm_hu <- ofm_hu |>
+  group_by(geography, variable) |>
+  mutate(previous = (lag(estimate))) |>
+  drop_na() |>
+  mutate(delta = estimate - previous) |>
+  select("filter", "year", "geography", "regional_geography", "estimate", "delta") |>
+  as_tibble()
+
+for_eric <- ofm_hu |> filter(year >= 2001 & variable != "Total" & geography == "Region") |> filter(year != 2010) |> arrange(variable, year)
 
 # Charts for first trend ------------------------------------------------
 
